@@ -181,6 +181,176 @@
         
         // 나머지 JavaScript 코드는 다음 단계에서!
         console.log('Firebase 연결 성공!');
+
+
+                // Firebase 초기화 (이미 있음)
+        // ...
+        
+        // 전역 변수
+        let students = [];
+        let seats = {};
+        let draggedStudent = null;
+        
+        // 초기 자리 생성 (6x5 = 30자리)
+        function initSeats() {
+            const classroom = document.getElementById('classroom');
+            classroom.innerHTML = '';
+            
+            for (let i = 0; i < 30; i++) {
+                const seat = document.createElement('div');
+                seat.className = 'seat';
+                seat.dataset.seatId = i;
+                seat.textContent = i + 1;
+                
+                // 드롭 이벤트
+                seat.addEventListener('dragover', (e) => e.preventDefault());
+                seat.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropStudent(i);
+                });
+                
+                // 클릭으로 제거
+                seat.addEventListener('click', () => {
+                    if (seats[i]) {
+                        removeSeatStudent(i);
+                    }
+                });
+                
+                classroom.appendChild(seat);
+            }
+        }
+        
+        // 학생 추가
+        function addStudent() {
+            const input = document.getElementById('studentName');
+            const name = input.value.trim();
+            
+            if (!name) {
+                alert('학생 이름을 입력하세요!');
+                return;
+            }
+            
+            if (students.includes(name)) {
+                alert('이미 있는 학생입니다!');
+                return;
+            }
+            
+            students.push(name);
+            database.ref('students').set(students);
+            input.value = '';
+        }
+        
+        // 학생 목록 렌더링
+        function renderStudents() {
+            const container = document.getElementById('students');
+            container.innerHTML = '';
+            
+            students.forEach((name, index) => {
+                // 이미 배치된 학생은 제외
+                if (Object.values(seats).includes(name)) return;
+                
+                const item = document.createElement('div');
+                item.className = 'student-item';
+                item.textContent = name;
+                item.draggable = true;
+                
+                item.addEventListener('dragstart', () => {
+                    draggedStudent = name;
+                });
+                
+                // 더블클릭으로 삭제
+                item.addEventListener('dblclick', () => {
+                    if (confirm(`${name} 학생을 삭제하시겠습니까?`)) {
+                        students = students.filter(s => s !== name);
+                        database.ref('students').set(students);
+                    }
+                });
+                
+                container.appendChild(item);
+            });
+        }
+        
+        // 자리에 학생 배치
+        function dropStudent(seatId) {
+            if (!draggedStudent) return;
+            
+            seats[seatId] = draggedStudent;
+            database.ref('seats').set(seats);
+            draggedStudent = null;
+        }
+        
+        // 자리에서 학생 제거
+        function removeSeatStudent(seatId) {
+            if (!seats[seatId]) return;
+            
+            if (confirm(`${seats[seatId]} 학생을 자리에서 제거하시겠습니까?`)) {
+                delete seats[seatId];
+                database.ref('seats').set(seats);
+            }
+        }
+        
+        // 자리 렌더링
+        function renderSeats() {
+            const classroom = document.getElementById('classroom');
+            const seatDivs = classroom.querySelectorAll('.seat');
+            
+            seatDivs.forEach((seat, index) => {
+                if (seats[index]) {
+                    seat.classList.add('filled');
+                    seat.textContent = seats[index];
+                } else {
+                    seat.classList.remove('filled');
+                    seat.textContent = index + 1;
+                }
+            });
+        }
+        
+        // 랜덤 배치
+        function randomSeating() {
+            if (students.length === 0) {
+                alert('학생을 먼저 추가하세요!');
+                return;
+            }
+            
+            if (!confirm('랜덤으로 자리를 배치하시겠습니까?')) return;
+            
+            seats = {};
+            const shuffled = [...students].sort(() => Math.random() - 0.5);
+            
+            shuffled.forEach((student, index) => {
+                if (index < 30) {  // 최대 30자리
+                    seats[index] = student;
+                }
+            });
+            
+            database.ref('seats').set(seats);
+        }
+        
+        // 전체 초기화
+        function clearAll() {
+            if (!confirm('모든 데이터를 삭제하시겠습니까?')) return;
+            
+            students = [];
+            seats = {};
+            database.ref('students').set([]);
+            database.ref('seats').set({});
+        }
+        
+        // 🔥 실시간 동기화!
+        database.ref('students').on('value', (snapshot) => {
+            students = snapshot.val() || [];
+            renderStudents();
+        });
+        
+        database.ref('seats').on('value', (snapshot) => {
+            seats = snapshot.val() || {};
+            renderSeats();
+        });
+        
+        // 초기화
+        initSeats();
+        renderStudents();
+        renderSeats();
     </script>
 </body>
 </html>
